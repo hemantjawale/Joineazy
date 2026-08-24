@@ -13,6 +13,7 @@ export const createGroup = async (req, res, next) => {
       groupId: group.id,
       userId: req.user.id,
       role: "leader",
+      status: "active",
     });
 
     const fullGroup = await Group.findByPk(group.id, {
@@ -31,7 +32,7 @@ export const createGroup = async (req, res, next) => {
 export const getGroups = async (req, res, next) => {
   try {
     const memberships = await GroupMember.findAll({
-      where: { userId: req.user.id },
+      where: { userId: req.user.id, status: "active" },
       attributes: ["groupId"],
     });
 
@@ -113,6 +114,7 @@ export const addMember = async (req, res, next) => {
       groupId,
       userId: user.id,
       role: "member",
+      status: "pending",
     });
 
     const group = await Group.findByPk(groupId, {
@@ -171,6 +173,66 @@ export const getAllStudents = async (req, res, next) => {
     });
 
     res.json({ students });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getInvitations = async (req, res, next) => {
+  try {
+    const memberships = await GroupMember.findAll({
+      where: { userId: req.user.id, status: "pending" },
+      attributes: ["groupId"],
+    });
+
+    const groupIds = memberships.map((m) => m.groupId);
+
+    const groups = await Group.findAll({
+      where: { id: groupIds },
+      include: [
+        { model: User, as: "creator", attributes: ["id", "name", "email"] },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.json({ groups });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const acceptInvitation = async (req, res, next) => {
+  try {
+    const membership = await GroupMember.findOne({
+      where: { groupId: req.params.id, userId: req.user.id, status: "pending" },
+    });
+    
+    if (!membership) {
+      return res.status(404).json({ message: "Invitation not found" });
+    }
+    
+    membership.status = "active";
+    await membership.save();
+    
+    res.json({ message: "Invitation accepted" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const rejectInvitation = async (req, res, next) => {
+  try {
+    const membership = await GroupMember.findOne({
+      where: { groupId: req.params.id, userId: req.user.id, status: "pending" },
+    });
+    
+    if (!membership) {
+      return res.status(404).json({ message: "Invitation not found" });
+    }
+    
+    await membership.destroy();
+    
+    res.json({ message: "Invitation rejected" });
   } catch (error) {
     next(error);
   }

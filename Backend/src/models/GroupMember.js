@@ -21,6 +21,10 @@ const GroupMember = sequelize.define("GroupMember", {
     type: DataTypes.ENUM("leader", "member"),
     defaultValue: "member",
   },
+  status: {
+    type: DataTypes.ENUM("pending", "active"),
+    defaultValue: "pending",
+  },
 });
 
 export default GroupMember;

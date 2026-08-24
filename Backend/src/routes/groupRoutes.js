@@ -7,6 +7,9 @@ import {
   addMember,
   removeMember,
   getAllStudents,
+  getInvitations,
+  acceptInvitation,
+  rejectInvitation,
 } from "../controllers/groupController.js";
 import authenticate from "../middleware/auth.js";
 import authorize from "../middleware/authorize.js";
@@ -18,6 +21,7 @@ router.use(authenticate);
 router.use(authorize("student"));
 
 router.get("/students", getAllStudents);
+router.get("/invitations", getInvitations);
 router.get("/", getGroups);
 router.get("/:id", getGroup);
 
@@ -36,5 +40,8 @@ router.post(
 );
 
 router.delete("/:id/members/:userId", removeMember);
+
+router.post("/:id/invitations/accept", acceptInvitation);
+router.post("/:id/invitations/reject", rejectInvitation);
 
 export default router;

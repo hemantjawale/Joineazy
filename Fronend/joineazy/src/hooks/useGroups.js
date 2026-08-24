@@ -58,6 +58,20 @@ export function useGroups() {
     return res.data.students;
   }, []);
 
+  const getInvitations = useCallback(async () => {
+    const res = await api.get("/groups/invitations");
+    return res.data.groups;
+  }, []);
+
+  const acceptInvitation = useCallback(async (groupId) => {
+    await api.post(`/groups/${groupId}/invitations/accept`);
+    fetchGroups();
+  }, [fetchGroups]);
+
+  const rejectInvitation = useCallback(async (groupId) => {
+    await api.post(`/groups/${groupId}/invitations/reject`);
+  }, []);
+
   useEffect(() => {
     fetchGroups();
   }, [fetchGroups]);
@@ -72,5 +86,8 @@ export function useGroups() {
     addMember,
     removeMember,
     fetchStudents,
+    getInvitations,
+    acceptInvitation,
+    rejectInvitation,
   };
 }

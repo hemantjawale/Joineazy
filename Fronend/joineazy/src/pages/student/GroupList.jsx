@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useGroups } from "@/hooks/useGroups";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,15 @@ import { Plus, Users, ArrowRight, Crown } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function GroupList() {
-  const { groups, loading, createGroup } = useGroups();
+  const { groups, loading, createGroup, getInvitations, acceptInvitation, rejectInvitation } = useGroups();
+  const [invitations, setInvitations] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    getInvitations().then(setInvitations).catch(console.error);
+  }, [getInvitations]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -34,6 +39,26 @@ export default function GroupList() {
     }
   };
 
+  const handleAccept = async (groupId) => {
+    try {
+      await acceptInvitation(groupId);
+      toast.success("Invitation accepted!");
+      setInvitations((prev) => prev.filter((i) => i.id !== groupId));
+    } catch (err) {
+      toast.error("Failed to accept invitation");
+    }
+  };
+
+  const handleReject = async (groupId) => {
+    try {
+      await rejectInvitation(groupId);
+      toast.success("Invitation declined");
+      setInvitations((prev) => prev.filter((i) => i.id !== groupId));
+    } catch (err) {
+      toast.error("Failed to decline invitation");
+    }
+  };
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -47,6 +72,26 @@ export default function GroupList() {
           <Plus size={16} /> New Group
         </Button>
       </div>
+
+      {invitations.length > 0 && (
+        <div className="bg-primary-50 border border-primary-200 rounded-xl p-5 shadow-sm mb-6">
+          <h2 className="text-lg font-semibold text-primary-900 mb-4">Pending Invitations</h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {invitations.map((inv) => (
+              <div key={inv.id} className="bg-white rounded-xl border border-primary-100 p-4 shadow-sm flex flex-col justify-between">
+                <div>
+                  <h3 className="text-base font-semibold text-surface-900">{inv.name}</h3>
+                  <p className="text-xs text-surface-500 mb-3 mt-1">Invited by: {inv.creator?.name}</p>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <Button size="sm" variant="success" className="w-full text-xs" onClick={() => handleAccept(inv.id)}>Accept</Button>
+                  <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => handleReject(inv.id)}>Decline</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {groups.length === 0 ? (
         <EmptyState

@@ -209,9 +209,16 @@ export default function GroupDetail() {
                   <Avatar name={m.user?.name || "User"} />
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-surface-900">{m.user?.name}</p>
+                      <p className={`text-sm font-medium ${m.status === "pending" ? "text-surface-500 italic" : "text-surface-900"}`}>
+                        {m.user?.name}
+                      </p>
                       {m.role === "leader" && (
                         <Badge variant="warning" className="gap-1"><Crown size={10} /> Leader</Badge>
+                      )}
+                      {m.status === "pending" && (
+                        <Badge variant="default" className="gap-1 bg-surface-100 text-surface-500 hover:bg-surface-200 border-surface-200 font-normal">
+                          <Clock size={10} /> Invited
+                        </Badge>
                       )}
                     </div>
                     <p className="text-xs text-surface-400">{m.user?.email}</p>
