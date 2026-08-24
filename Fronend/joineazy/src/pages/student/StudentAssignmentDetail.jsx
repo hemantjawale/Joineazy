@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -31,6 +32,7 @@ export default function StudentAssignmentDetail() {
   const [loading, setLoading] = useState(true);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState("");
+  const [proofText, setProofText] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -54,13 +56,13 @@ export default function StudentAssignmentDetail() {
   const handleConfirmSubmission = async () => {
     setSubmitting(true);
     try {
-      const result = await confirmSubmission(id, selectedGroup || undefined);
+      const result = await confirmSubmission(id, selectedGroup || undefined, proofText || undefined);
 
       if (result.step === 1) {
         setMySubmission({ ...result.submission, status: "pending" });
-        toast.success("Step 1: Marked as submitted. Click again to confirm.");
+        toast.success("Step 1: Marked as submitted. Now provide your proof of work.");
       } else {
-        setMySubmission({ ...result.submission, status: "confirmed" });
+        setMySubmission({ ...result.submission, status: "confirmed", proofText });
         toast.success("Submission confirmed!");
       }
       setShowConfirmDialog(false);
@@ -78,6 +80,7 @@ export default function StudentAssignmentDetail() {
   const days = daysUntil(assignment.dueDate);
   const isPending = mySubmission?.status === "pending";
   const isConfirmed = mySubmission?.status === "confirmed";
+  const isGraded = mySubmission?.status === "graded";
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
@@ -132,21 +135,59 @@ export default function StudentAssignmentDetail() {
           <div className="border-t border-surface-200 pt-6">
             <h3 className="text-sm font-medium text-surface-700 mb-3">Submission Status</h3>
 
-            {isConfirmed ? (
-              <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-200">
-                <CheckCircle className="w-6 h-6 text-success shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-emerald-800">Submission Confirmed</p>
-                  <p className="text-xs text-emerald-600">Your submission has been verified</p>
+            {isGraded ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-primary-50 border border-primary-200">
+                  <CheckCircle className="w-6 h-6 text-primary-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-primary-800">Submission Graded</p>
+                    <p className="text-xs text-primary-600">Your work has been reviewed</p>
+                  </div>
                 </div>
+                <div className="bg-surface-50 p-4 rounded-xl space-y-3">
+                  <div>
+                    <span className="text-xs font-semibold text-surface-500 uppercase tracking-wider block mb-1">Grade</span>
+                    <Badge variant={mySubmission.grade === "Incorrect" ? "danger" : "success"} className="text-sm px-3 py-1">
+                      {mySubmission.grade}
+                    </Badge>
+                  </div>
+                  {mySubmission.feedback && (
+                    <div>
+                      <span className="text-xs font-semibold text-surface-500 uppercase tracking-wider block mb-1">Feedback</span>
+                      <p className="text-sm text-surface-700 bg-white p-3 rounded-lg border border-surface-200">{mySubmission.feedback}</p>
+                    </div>
+                  )}
+                  {mySubmission.proofText && (
+                    <div>
+                      <span className="text-xs font-semibold text-surface-500 uppercase tracking-wider block mb-1">Your Proof of Work</span>
+                      <p className="text-sm text-surface-700">{mySubmission.proofText}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : isConfirmed ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+                  <CheckCircle className="w-6 h-6 text-success shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-emerald-800">Submission Confirmed</p>
+                    <p className="text-xs text-emerald-600">Waiting for professor review</p>
+                  </div>
+                </div>
+                {mySubmission.proofText && (
+                  <div className="bg-surface-50 p-4 rounded-xl">
+                    <span className="text-xs font-semibold text-surface-500 uppercase tracking-wider block mb-1">Your Proof of Work</span>
+                    <p className="text-sm text-surface-700">{mySubmission.proofText}</p>
+                  </div>
+                )}
               </div>
             ) : isPending ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
                   <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-amber-800">Step 1 Complete — Confirm Now</p>
-                    <p className="text-xs text-amber-600">Click below to finalize your submission</p>
+                    <p className="text-sm font-medium text-amber-800">Step 1 Complete — Provide Proof of Work</p>
+                    <p className="text-xs text-amber-600">Click below to provide your upload link or description</p>
                   </div>
                 </div>
                 <Button onClick={() => setShowConfirmDialog(true)} variant="success" className="w-full gap-2">
@@ -155,7 +196,7 @@ export default function StudentAssignmentDetail() {
               </div>
             ) : (
               <Button onClick={() => setShowConfirmDialog(true)} className="w-full gap-2">
-                <CheckCircle size={16} /> I Have Submitted (Step 1)
+                <CheckCircle size={16} /> I Have Uploaded My Work (Step 1)
               </Button>
             )}
           </div>
@@ -171,9 +212,20 @@ export default function StudentAssignmentDetail() {
         <DialogContent>
           <p className="text-sm text-surface-600 mb-4">
             {isPending
-              ? "Are you sure you want to confirm? This verifies that you have uploaded your work to the OneDrive link."
+              ? "Are you sure you want to confirm? Please provide a link to your uploaded file or a brief description."
               : "Have you uploaded your work to the OneDrive folder? This is step 1 of 2."}
           </p>
+          {isPending && (
+            <div className="space-y-2 mb-4">
+              <Label>Proof of Work (Link or Description)</Label>
+              <Textarea 
+                placeholder="e.g. Uploaded as John_Doe_Assignment1.pdf" 
+                value={proofText}
+                onChange={(e) => setProofText(e.target.value)}
+                required
+              />
+            </div>
+          )}
           {assignment.type === "group" && groups.length > 0 && !isPending && (
             <div className="space-y-2">
               <Label>Select Group (optional)</Label>

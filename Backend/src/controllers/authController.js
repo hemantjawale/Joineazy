@@ -14,16 +14,32 @@ export const register = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
 
+    if (!name || name.trim().length < 2) {
+      return res.status(400).json({ message: "Name must be at least 2 characters" });
+    }
+
+    if (!email || !email.includes("@") || !email.includes(".")) {
+      return res.status(400).json({ message: "Please enter a valid email address" });
+    }
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    if (!role || !["student", "professor"].includes(role)) {
+      return res.status(400).json({ message: "Role must be either student or professor" });
+    }
+
     const existing = await User.findOne({ where: { email } });
     if (existing) {
-      return res.status(409).json({ message: "Email already registered" });
+      return res.status(409).json({ message: "An account with this email already exists. Please sign in instead." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = await User.create({
-      name,
-      email,
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
       password: hashedPassword,
       role,
     });
@@ -43,14 +59,22 @@ export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ where: { email } });
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ message: "Please enter a valid email address" });
+    }
+
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
+    }
+
+    const user = await User.findOne({ where: { email: email.toLowerCase().trim() } });
     if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(404).json({ message: "No account found with this email. Please sign up first." });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "Incorrect password. Please try again." });
     }
 
     const token = generateToken(user);

@@ -7,7 +7,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import EmptyState from "@/components/shared/EmptyState";
-import { Search, BookOpen, Calendar, ExternalLink, User } from "lucide-react";
+import { Search, BookOpen, Calendar, ExternalLink, User, Users } from "lucide-react";
 import { formatDate, isOverdue, daysUntil } from "@/lib/utils";
 
 export default function StudentAssignments() {

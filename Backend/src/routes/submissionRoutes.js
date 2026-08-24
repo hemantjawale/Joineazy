@@ -5,6 +5,7 @@ import {
   getAssignmentSubmissions,
   getGroupSubmissions,
   getMySubmissions,
+  gradeSubmission,
 } from "../controllers/submissionController.js";
 import authenticate from "../middleware/auth.js";
 import authorize from "../middleware/authorize.js";
@@ -21,6 +22,8 @@ router.post(
   validate,
   confirmSubmission
 );
+
+router.post("/grade/:id", authorize("professor"), gradeSubmission);
 
 router.get("/mine", authorize("student"), getMySubmissions);
 router.get("/assignment/:id", authorize("professor"), getAssignmentSubmissions);

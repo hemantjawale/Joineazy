@@ -8,6 +8,7 @@ import {
   LogOut,
   BookOpen,
   ClipboardCheck,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
@@ -15,6 +16,8 @@ import { Avatar } from "@/components/ui/avatar";
 const professorLinks = [
   { to: "/professor/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/professor/assignments", label: "Assignments", icon: FileText },
+  { to: "/professor/groups", label: "Groups", icon: Users },
+  { to: "/professor/students", label: "Students", icon: GraduationCap },
   { to: "/professor/analytics", label: "Analytics", icon: BarChart3 },
 ];
 

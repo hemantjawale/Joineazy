@@ -2,7 +2,7 @@ import { Submission, Assignment, User, Group, GroupMember } from "../models/inde
 
 export const confirmSubmission = async (req, res, next) => {
   try {
-    const { assignmentId, groupId } = req.body;
+    const { assignmentId, groupId, proofText } = req.body;
 
     const assignment = await Assignment.findByPk(assignmentId);
     if (!assignment) {
@@ -20,6 +20,7 @@ export const confirmSubmission = async (req, res, next) => {
     if (existing && existing.status === "pending") {
       existing.status = "confirmed";
       existing.confirmedAt = new Date();
+      if (proofText) existing.proofText = proofText;
       await existing.save();
       return res.json({ submission: existing, step: 2 });
     }
@@ -91,6 +92,27 @@ export const getMySubmissions = async (req, res, next) => {
     });
 
     res.json({ submissions });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const gradeSubmission = async (req, res, next) => {
+  try {
+    const { grade, feedback } = req.body;
+    const submissionId = req.params.id;
+
+    const submission = await Submission.findByPk(submissionId);
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    submission.grade = grade;
+    submission.feedback = feedback;
+    submission.status = "graded";
+    await submission.save();
+
+    res.json({ submission });
   } catch (error) {
     next(error);
   }

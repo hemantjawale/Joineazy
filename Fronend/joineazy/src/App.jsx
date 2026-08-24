@@ -1,8 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/layout/AuthLayout";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import ProtectedRoute from "@/components/shared/ProtectedRoute";
+import LoadingSpinner from "@/components/shared/LoadingSpinner";
 
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
@@ -13,6 +13,9 @@ import AssignmentList from "@/pages/professor/AssignmentList";
 import AssignmentForm from "@/pages/professor/AssignmentForm";
 import AssignmentDetail from "@/pages/professor/AssignmentDetail";
 import ProfessorAnalytics from "@/pages/professor/ProfessorAnalytics";
+import ProfessorGroups from "@/pages/professor/ProfessorGroups";
+import ProfessorGroupDetail from "@/pages/professor/ProfessorGroupDetail";
+import ProfessorStudents from "@/pages/professor/ProfessorStudents";
 
 import StudentDashboard from "@/pages/student/StudentDashboard";
 import StudentAssignments from "@/pages/student/StudentAssignments";
@@ -21,11 +24,35 @@ import GroupList from "@/pages/student/GroupList";
 import GroupDetail from "@/pages/student/GroupDetail";
 import StudentSubmissions from "@/pages/student/StudentSubmissions";
 
-function AuthRedirect({ children }) {
-  const { user } = useAuth();
+function RequireGuest({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) return <LoadingSpinner />;
+
   if (user) {
-    return <Navigate to={user.role === "professor" ? "/professor/dashboard" : "/student/dashboard"} replace />;
+    const dashboard = user.role === "professor" ? "/professor/dashboard" : "/student/dashboard";
+    return <Navigate to={dashboard} state={{ from: location }} />;
   }
+
+  return children;
+}
+
+function RequireAuth({ role, children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) return <LoadingSpinner />;
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} />;
+  }
+
+  if (role && user.role !== role) {
+    const dashboard = user.role === "professor" ? "/professor/dashboard" : "/student/dashboard";
+    return <Navigate to={dashboard} state={{ from: location }} />;
+  }
+
   return children;
 }
 
@@ -33,23 +60,26 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<AuthRedirect><Landing /></AuthRedirect>} />
+        <Route path="/" element={<RequireGuest><Landing /></RequireGuest>} />
 
-        <Route element={<AuthRedirect><AuthLayout /></AuthRedirect>}>
+        <Route element={<RequireGuest><AuthLayout /></RequireGuest>}>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
         </Route>
 
-        <Route element={<ProtectedRoute role="professor"><DashboardLayout /></ProtectedRoute>}>
+        <Route element={<RequireAuth role="professor"><DashboardLayout /></RequireAuth>}>
           <Route path="/professor/dashboard" element={<ProfessorDashboard />} />
           <Route path="/professor/assignments" element={<AssignmentList />} />
           <Route path="/professor/assignments/new" element={<AssignmentForm />} />
           <Route path="/professor/assignments/:id" element={<AssignmentDetail />} />
           <Route path="/professor/assignments/:id/edit" element={<AssignmentForm />} />
           <Route path="/professor/analytics" element={<ProfessorAnalytics />} />
+          <Route path="/professor/groups" element={<ProfessorGroups />} />
+          <Route path="/professor/groups/:id" element={<ProfessorGroupDetail />} />
+          <Route path="/professor/students" element={<ProfessorStudents />} />
         </Route>
 
-        <Route element={<ProtectedRoute role="student"><DashboardLayout /></ProtectedRoute>}>
+        <Route element={<RequireAuth role="student"><DashboardLayout /></RequireAuth>}>
           <Route path="/student/dashboard" element={<StudentDashboard />} />
           <Route path="/student/assignments" element={<StudentAssignments />} />
           <Route path="/student/assignments/:id" element={<StudentAssignmentDetail />} />
@@ -58,7 +88,7 @@ export default function App() {
           <Route path="/student/submissions" element={<StudentSubmissions />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   );

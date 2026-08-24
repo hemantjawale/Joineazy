@@ -7,7 +7,17 @@ import { Progress } from "@/components/ui/progress";
 import { Avatar } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-import { ArrowLeft, ExternalLink, Calendar, Users, CheckCircle, Clock, Edit } from "lucide-react";
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogContent,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, ExternalLink, Calendar, Users, CheckCircle, Clock, Edit, FileText } from "lucide-react";
 import { formatDate, formatDateTime, isOverdue, daysUntil } from "@/lib/utils";
 
 export default function AssignmentDetail() {
@@ -16,6 +26,12 @@ export default function AssignmentDetail() {
   const [assignment, setAssignment] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [evaluation, setEvaluation] = useState("Correct");
+  const [grade, setGrade] = useState("");
+  const [feedback, setFeedback] = useState("");
+  const [grading, setGrading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -33,6 +49,48 @@ export default function AssignmentDetail() {
     };
     fetchData();
   }, [id]);
+
+  const handleGradeSubmission = async (e) => {
+    e.preventDefault();
+    if (!selectedSubmission) return;
+    setGrading(true);
+    try {
+      const finalGrade = evaluation === "Correct" ? (grade ? `Correct (${grade})` : "Correct") : "Incorrect";
+      const res = await api.post(`/submissions/grade/${selectedSubmission.id}`, { grade: finalGrade, feedback });
+      
+      // Update local state to reflect the graded submission
+      setAnalytics((prev) => {
+        const newSubmissions = prev.submissions.map(s => 
+          s.id === selectedSubmission.id ? res.data.submission : s
+        );
+        return { ...prev, submissions: newSubmissions };
+      });
+      
+      setSelectedSubmission(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setGrading(false);
+    }
+  };
+
+  const openGradeDialog = (sub) => {
+    if (sub.status === "pending") return;
+    setSelectedSubmission(sub);
+    const existingGrade = sub.grade || "";
+    if (existingGrade.startsWith("Correct")) {
+      setEvaluation("Correct");
+      const match = existingGrade.match(/\((.*?)\)/);
+      setGrade(match ? match[1] : "");
+    } else if (existingGrade === "Incorrect") {
+      setEvaluation("Incorrect");
+      setGrade("");
+    } else {
+      setEvaluation("Correct");
+      setGrade(existingGrade);
+    }
+    setFeedback(sub.feedback || "");
+  };
 
   if (loading) return <LoadingSpinner />;
   if (!assignment) return <p className="text-center py-16 text-surface-500">Assignment not found</p>;
@@ -160,7 +218,15 @@ export default function AssignmentDetail() {
         ) : (
           <div className="space-y-2">
             {analytics?.submissions?.map((s) => (
-              <div key={s.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-surface-50 transition-colors">
+              <div 
+                key={s.id} 
+                onClick={() => openGradeDialog(s)}
+                className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                  s.status !== "pending" 
+                    ? "cursor-pointer hover:border-primary-300 border-surface-200 bg-white shadow-sm" 
+                    : "border-transparent hover:bg-surface-50 opacity-70"
+                }`}
+              >
                 <div className="flex items-center gap-3">
                   <Avatar name={s.user?.name || "User"} size="sm" />
                   <div>
@@ -170,8 +236,13 @@ export default function AssignmentDetail() {
                 </div>
                 <div className="flex items-center gap-3">
                   {s.group && <Badge variant="info">{s.group.name}</Badge>}
-                  <Badge variant={s.status === "confirmed" ? "success" : "warning"}>
-                    {s.status}
+                  {s.proofText && (
+                    <span className="text-xs text-surface-500 flex items-center gap-1" title="Proof of work provided">
+                      <FileText size={12} /> Proof
+                    </span>
+                  )}
+                  <Badge variant={s.status === "graded" ? "primary" : s.status === "confirmed" ? "success" : "warning"}>
+                    {s.status === "graded" ? `Graded: ${s.grade}` : s.status}
                   </Badge>
                 </div>
               </div>
@@ -179,6 +250,87 @@ export default function AssignmentDetail() {
           </div>
         )}
       </div>
+
+      <Dialog open={!!selectedSubmission} onClose={() => setSelectedSubmission(null)}>
+        <DialogHeader>
+          <DialogTitle>Grade Submission</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleGradeSubmission}>
+          <DialogContent className="space-y-4">
+            <div className="bg-surface-50 p-4 rounded-xl space-y-2">
+              <p className="text-sm font-medium text-surface-900">
+                Student: <span className="font-normal text-surface-700">{selectedSubmission?.user?.name}</span>
+              </p>
+              {selectedSubmission?.proofText && (
+                <div>
+                  <span className="text-xs font-semibold text-surface-500 uppercase tracking-wider block mb-1 mt-2">Proof of Work</span>
+                  <p className="text-sm text-surface-700 bg-white p-3 rounded-lg border border-surface-200">
+                    {selectedSubmission.proofText}
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <div className="space-y-3">
+              <Label>Evaluation</Label>
+              <div className="flex items-center gap-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    className="w-4 h-4 text-primary-600 focus:ring-primary-500 border-surface-300"
+                    value="Correct" 
+                    checked={evaluation === "Correct"} 
+                    onChange={(e) => setEvaluation(e.target.value)} 
+                  />
+                  <span className="text-sm font-medium text-surface-700">Correct</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    className="w-4 h-4 text-danger focus:ring-danger border-surface-300"
+                    value="Incorrect" 
+                    checked={evaluation === "Incorrect"} 
+                    onChange={(e) => {
+                      setEvaluation(e.target.value);
+                      setGrade("");
+                    }} 
+                  />
+                  <span className="text-sm font-medium text-surface-700">Incorrect</span>
+                </label>
+              </div>
+            </div>
+            
+            {evaluation === "Correct" && (
+              <div className="space-y-2 animate-fade-in">
+                <Label htmlFor="grade">Marks</Label>
+                <Input
+                  id="grade"
+                  placeholder="e.g. 10/10, 85"
+                  value={grade}
+                  onChange={(e) => setGrade(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="feedback">Feedback (optional)</Label>
+              <Textarea
+                id="feedback"
+                placeholder="Leave a comment..."
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+              />
+            </div>
+          </DialogContent>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setSelectedSubmission(null)}>Cancel</Button>
+            <Button type="submit" disabled={grading}>
+              {grading ? "Saving..." : "Save Grade"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
     </div>
   );
 }

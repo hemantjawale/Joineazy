@@ -5,8 +5,8 @@ export function useSubmissions() {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const confirmSubmission = useCallback(async (assignmentId, groupId) => {
-    const res = await api.post("/submissions/confirm", { assignmentId, groupId });
+  const confirmSubmission = useCallback(async (assignmentId, groupId, proofText) => {
+    const res = await api.post("/submissions/confirm", { assignmentId, groupId, proofText });
     return res.data;
   }, []);
 

@@ -43,6 +43,15 @@ export default function GroupDetail() {
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberEmail, setMemberEmail] = useState("");
   const [addingMember, setAddingMember] = useState(false);
+  const [allStudents, setAllStudents] = useState([]);
+
+  useEffect(() => {
+    if (showAddMember && allStudents.length === 0) {
+      api.get("/groups/students")
+        .then(res => setAllStudents(res.data.students))
+        .catch(err => console.error("Failed to load students", err));
+    }
+  }, [showAddMember, allStudents.length]);
 
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [taskForm, setTaskForm] = useState({ title: "", description: "", assignedToId: "" });
@@ -349,15 +358,22 @@ export default function GroupDetail() {
         <form onSubmit={handleAddMember}>
           <DialogContent>
             <div className="space-y-2">
-              <Label htmlFor="member-email">Student Email</Label>
-              <Input
+              <Label htmlFor="member-email">Select Student</Label>
+              <Select
                 id="member-email"
-                type="email"
-                placeholder="student@university.edu"
                 value={memberEmail}
                 onChange={(e) => setMemberEmail(e.target.value)}
                 required
-              />
+              >
+                <option value="">-- Choose a student --</option>
+                {allStudents
+                  .filter((s) => !group?.members?.some((m) => m.userId === s.id))
+                  .map((student) => (
+                    <option key={student.id} value={student.email}>
+                      {student.name} ({student.email})
+                    </option>
+                ))}
+              </Select>
             </div>
           </DialogContent>
           <DialogFooter>

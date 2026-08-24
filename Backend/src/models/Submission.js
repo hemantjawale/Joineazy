@@ -22,8 +22,21 @@ const Submission = sequelize.define("Submission", {
     allowNull: true,
     field: "group_id",
   },
+  proofText: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: "proof_text",
+  },
+  grade: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  feedback: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
   status: {
-    type: DataTypes.ENUM("pending", "confirmed"),
+    type: DataTypes.ENUM("pending", "confirmed", "graded"),
     defaultValue: "pending",
   },
   confirmedAt: {

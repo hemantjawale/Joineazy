@@ -7,13 +7,16 @@ import {
   BarChart3,
   BookOpen,
   ClipboardCheck,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const professorLinks = [
-  { to: "/professor/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/professor/assignments", label: "Assignments", icon: FileText },
-  { to: "/professor/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/professor/dashboard", label: "Home", icon: LayoutDashboard },
+  { to: "/professor/assignments", label: "Tasks", icon: FileText },
+  { to: "/professor/groups", label: "Groups", icon: Users },
+  { to: "/professor/students", label: "Students", icon: GraduationCap },
+  { to: "/professor/analytics", label: "Stats", icon: BarChart3 },
 ];
 
 const studentLinks = [
