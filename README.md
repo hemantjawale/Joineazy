@@ -1,5 +1,7 @@
 # Joineazy Technical Documentation
 
+**Live Application:** [https://joineazy-1.onrender.com](https://joineazy-1.onrender.com)
+
 ## 1. Overview of Implementation
 
 Joineazy is a full-stack educational management platform designed to streamline the workflow between professors and students. It facilitates assignment distribution, group formation, task delegation, internal group communication, and submission grading.
