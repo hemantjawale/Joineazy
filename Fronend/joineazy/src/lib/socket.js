@@ -5,7 +5,8 @@ let socket = null;
 export const getSocket = () => {
   if (!socket) {
     const token = localStorage.getItem("joineazy_token");
-    socket = io(window.location.origin, {
+    const socketUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    socket = io(socketUrl, {
       auth: { token },
       transports: ["websocket", "polling"],
     });
