@@ -5,6 +5,19 @@ import GroupMember from "./GroupMember.js";
 import Submission from "./Submission.js";
 import GroupTask from "./GroupTask.js";
 import ChatMessage from "./ChatMessage.js";
+import Course from "./Course.js";
+import CourseEnrollment from "./CourseEnrollment.js";
+
+// Course Relations
+User.hasMany(Course, { foreignKey: "professorId", as: "coursesTaught" });
+Course.belongsTo(User, { foreignKey: "professorId", as: "professor" });
+
+Course.belongsToMany(User, { through: CourseEnrollment, foreignKey: "courseId", as: "students" });
+User.belongsToMany(Course, { through: CourseEnrollment, foreignKey: "studentId", as: "enrolledCourses" });
+
+// Modify Assignment to belong to a Course instead of just floating
+Course.hasMany(Assignment, { foreignKey: "courseId", as: "assignments" });
+Assignment.belongsTo(Course, { foreignKey: "courseId", as: "course" });
 
 User.hasMany(Assignment, { foreignKey: "professorId", as: "assignments" });
 Assignment.belongsTo(User, { foreignKey: "professorId", as: "professor" });
@@ -53,4 +66,6 @@ export {
   Submission,
   GroupTask,
   ChatMessage,
+  Course,
+  CourseEnrollment,
 };

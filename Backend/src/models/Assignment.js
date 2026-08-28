@@ -39,6 +39,11 @@ const Assignment = sequelize.define("Assignment", {
     allowNull: false,
     field: "professor_id",
   },
+  courseId: {
+    type: DataTypes.UUID,
+    allowNull: true, // Allow true for now to avoid breaking existing data immediately
+    field: "course_id",
+  }
 });
 
 export default Assignment;

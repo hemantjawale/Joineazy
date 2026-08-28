@@ -13,14 +13,6 @@
   --color-primary-900: #134e4a;
   --color-primary-950: #042f2e;
 
-  --color-accent-50: #fffbeb;
-  --color-accent-100: #fef3c7;
-  --color-accent-200: #fde68a;
-  --color-accent-300: #fcd34d;
-  --color-accent-400: #fbbf24;
-  --color-accent-500: #f59e0b;
-  --color-accent-600: #d97706;
-
   --color-surface-50: #f8fafc;
   --color-surface-100: #f1f5f9;
   --color-surface-200: #e2e8f0;
@@ -36,86 +28,137 @@
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
-  --color-info: #06b6d4;
 
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1.5rem;
+  
+  /* Shadcn standard radii */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
 }
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @layer base {
+  :root {
+    --background: #f1f5f9; /* Light blue/grey typical of glassy backgrounds */
+    --foreground: #0f172a;
+    --card: rgba(255, 255, 255, 0.7);
+    --card-foreground: #0f172a;
+    --popover: rgba(255, 255, 255, 0.8);
+    --popover-foreground: #0f172a;
+    --primary: #0d9488;
+    --primary-foreground: #f8fafc;
+    --secondary: rgba(241, 245, 249, 0.5);
+    --secondary-foreground: #0f172a;
+    --muted: rgba(241, 245, 249, 0.8);
+    --muted-foreground: #64748b;
+    --accent: rgba(241, 245, 249, 0.6);
+    --accent-foreground: #0f172a;
+    --destructive: #ef4444;
+    --destructive-foreground: #f8fafc;
+    --border: rgba(255, 255, 255, 0.5);
+    --input: rgba(255, 255, 255, 0.6);
+    --ring: #0d9488;
+    --radius: 0.75rem;
+    
+    /* Glassmorphism specifics */
+    --glass-blur: blur(12px);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.4);
+    --glass-bg: rgba(255, 255, 255, 0.4);
+  }
+
+  [data-theme="dark"] {
+    --background: #020617; /* Deep space */
+    --foreground: #f8fafc;
+    --card: rgba(15, 23, 42, 0.6);
+    --card-foreground: #f8fafc;
+    --popover: rgba(15, 23, 42, 0.7);
+    --popover-foreground: #f8fafc;
+    --primary: #14b8a6;
+    --primary-foreground: #020617;
+    --secondary: rgba(30, 41, 59, 0.5);
+    --secondary-foreground: #f8fafc;
+    --muted: rgba(30, 41, 59, 0.7);
+    --muted-foreground: #94a3b8;
+    --accent: rgba(30, 41, 59, 0.6);
+    --accent-foreground: #f8fafc;
+    --destructive: #7f1d1d;
+    --destructive-foreground: #f8fafc;
+    --border: rgba(255, 255, 255, 0.1);
+    --input: rgba(30, 41, 59, 0.6);
+    --ring: #14b8a6;
+    
+    /* Glassmorphism specifics */
+    --glass-blur: blur(16px);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.05);
+    --glass-bg: rgba(15, 23, 42, 0.5);
+  }
+
   body {
     font-family: var(--font-sans);
-    background-color: var(--color-surface-50);
-    color: var(--color-surface-900);
+    background-color: var(--background);
+    color: var(--foreground);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Soft gradient background common in glass UIs */
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(20, 184, 166, 0.15) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.15) 0px, transparent 50%);
+    background-attachment: fixed;
   }
-
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: var(--color-surface-300);
-    border-radius: 3px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-surface-400);
-  }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-12px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(20, 184, 166, 0); }
 }
 
 @layer utilities {
-  .animate-fade-in {
-    animation: fadeIn 0.4s ease-out forwards;
+  .glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+  }
+  
+  .glass-card {
+    background: var(--card);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: var(--border);
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  .glass-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.1);
   }
 
-  .animate-slide-in {
-    animation: slideIn 0.3s ease-out forwards;
+  .glass-input {
+    background: var(--input);
+    backdrop-filter: blur(4px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--foreground);
   }
+  
+  .glass-input:focus {
+    outline: none;
+    border-color: var(--ring);
+    box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
+  }
+}
 
-  .animate-scale-in {
-    animation: scaleIn 0.2s ease-out forwards;
-  }
+/* Animations */
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
-  .glass {
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-  }
-
-  .glass-dark {
-    background: rgba(15, 23, 42, 0.8);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
+.animate-slide-up {
+  animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

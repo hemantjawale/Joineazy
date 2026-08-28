@@ -15,6 +15,8 @@ import taskRoutes from "./routes/taskRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 import professorViewRoutes from "./routes/professorViewRoutes.js";
+import calendarRoutes from "./routes/calendarRoutes.js";
+import courseRoutes from "./routes/courseRoutes.js";
 
 const app = express();
 const server = createServer(app);
@@ -39,6 +41,8 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/professor", professorViewRoutes);
+app.use("/api/calendar", calendarRoutes);
+app.use("/api/courses", courseRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });

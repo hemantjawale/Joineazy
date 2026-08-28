@@ -1,123 +1,174 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { motion } from "framer-motion";
+import { Users, FileText, CheckCircle, Clock, BookOpen, Plus, Search, ChevronRight } from "lucide-react";
 import api from "@/lib/api";
-import StatCard from "@/components/shared/StatCard";
-import LoadingSpinner from "@/components/shared/LoadingSpinner";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { FileText, Users, CheckCircle, Clock, BarChart3, Calendar } from "lucide-react";
-import { formatDate, isOverdue, daysUntil } from "@/lib/utils";
-import { Link } from "react-router-dom";
+import { SkeletonCard } from "@/components/shared/SkeletonLoader";
+import { Button } from "@/components/ui/button";
+import toast from "react-hot-toast";
 
 export default function ProfessorDashboard() {
-  const { user } = useAuth();
-  const [data, setData] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateCourse, setShowCreateCourse] = useState(false);
+  const [newCourseName, setNewCourseName] = useState("");
+  const [newCourseDesc, setNewCourseDesc] = useState("");
+
+  const fetchDashboardData = async () => {
+    try {
+      const [statsRes, coursesRes] = await Promise.all([
+        api.get("/professor/dashboard/attention"),
+        api.get("/courses")
+      ]);
+      setStats(statsRes.data);
+      setCourses(coursesRes.data.courses);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await api.get("/analytics/overview");
-        setData(res.data);
-      } catch {
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+    fetchDashboardData();
   }, []);
 
-  if (loading) return <LoadingSpinner />;
+  const handleCreateCourse = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post("/courses", { name: newCourseName, description: newCourseDesc });
+      toast.success("Course created successfully!");
+      setShowCreateCourse(false);
+      setNewCourseName("");
+      setNewCourseDesc("");
+      fetchDashboardData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to create course");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <SkeletonCard className="h-64" />
+        <SkeletonCard className="h-64" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-surface-900">Welcome back, {user?.name?.split(" ")[0]}</h1>
-        <p className="text-surface-500 mt-1">Here&apos;s what&apos;s happening with your assignments.</p>
+    <div className="space-y-8 animate-fade-in relative z-10">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">
+          Professor Dashboard
+        </h1>
+        <p className="text-sm mt-1 font-medium text-surface-600 dark:text-surface-400">
+          Manage your courses and view statistics.
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Assignments" value={data?.stats?.totalAssignments || 0} icon={FileText} />
-        <StatCard title="Total Students" value={data?.stats?.totalStudents || 0} icon={Users} />
-        <StatCard title="Confirmed" value={data?.stats?.confirmedSubmissions || 0} icon={CheckCircle} />
-        <StatCard title="Submission Rate" value={`${data?.stats?.submissionRate || 0}%`} icon={BarChart3} />
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-surface-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg font-semibold text-surface-900">Recent Assignments</h2>
-            <Link to="/professor/assignments" className="text-sm text-primary-600 hover:underline font-medium">
-              View all
-            </Link>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Courses Panel */}
+        <div className="lg:col-span-2 glass-panel p-6 flex flex-col h-full">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-[color:var(--border)]">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <BookOpen className="text-primary" /> My Courses
+            </h2>
+            <Button variant="glass" size="sm" onClick={() => setShowCreateCourse(true)}>
+              <Plus className="w-4 h-4 mr-1" /> Create Course
+            </Button>
           </div>
-          {data?.recentAssignments?.length === 0 ? (
-            <p className="text-sm text-surface-400 py-8 text-center">No assignments yet</p>
-          ) : (
-            <div className="space-y-3">
-              {data?.recentAssignments?.map((a) => {
-                const confirmed = a.submissions?.filter((s) => s.status === "confirmed").length || 0;
-                const total = a.submissions?.length || 0;
-                const pct = total > 0 ? Math.round((confirmed / total) * 100) : 0;
 
-                return (
-                  <Link
-                    key={a.id}
-                    to={`/professor/assignments/${a.id}`}
-                    className="flex items-center gap-4 p-3 rounded-xl hover:bg-surface-50 transition-colors group"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center shrink-0 group-hover:bg-primary-100 transition-colors">
-                      <FileText className="w-5 h-5 text-primary-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-surface-900 truncate">{a.title}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant={isOverdue(a.dueDate) ? "danger" : "secondary"}>
-                          {isOverdue(a.dueDate) ? "Overdue" : `Due ${formatDate(a.dueDate)}`}
-                        </Badge>
-                        <Badge variant={a.type === "group" ? "info" : "secondary"}>{a.type}</Badge>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0 hidden sm:block">
-                      <p className="text-sm font-semibold text-surface-700">{pct}%</p>
-                      <Progress value={pct} size="sm" className="w-20 mt-1" />
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+          {showCreateCourse && (
+            <motion.form 
+              initial={{ opacity: 0, height: 0 }} 
+              animate={{ opacity: 1, height: 'auto' }} 
+              className="mb-6 glass-card p-4 rounded-xl border-primary-300"
+              onSubmit={handleCreateCourse}
+            >
+              <h3 className="font-bold mb-3 text-sm">New Course Details</h3>
+              <div className="space-y-3">
+                <input 
+                  type="text" 
+                  placeholder="Course Name (e.g. Intro to Computer Science)" 
+                  className="w-full glass-input px-3 py-2 text-sm"
+                  value={newCourseName}
+                  onChange={e => setNewCourseName(e.target.value)}
+                  required
+                />
+                <textarea 
+                  placeholder="Course Description" 
+                  className="w-full glass-input px-3 py-2 text-sm h-20 resize-none"
+                  value={newCourseDesc}
+                  onChange={e => setNewCourseDesc(e.target.value)}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateCourse(false)}>Cancel</Button>
+                  <Button type="submit" size="sm">Create</Button>
+                </div>
+              </div>
+            </motion.form>
           )}
-        </div>
 
-        <div className="bg-white rounded-xl border border-surface-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg font-semibold text-surface-900">Upcoming Deadlines</h2>
-            <Calendar className="w-5 h-5 text-surface-400" />
-          </div>
-          {data?.upcomingDeadlines?.length === 0 ? (
-            <p className="text-sm text-surface-400 py-8 text-center">No upcoming deadlines</p>
-          ) : (
-            <div className="space-y-3">
-              {data?.upcomingDeadlines?.map((a) => {
-                const days = daysUntil(a.dueDate);
-                return (
-                  <div key={a.id} className="flex items-center gap-4 p-3 rounded-xl bg-surface-50">
-                    <div className="w-10 h-10 rounded-lg bg-accent-100 flex items-center justify-center shrink-0">
-                      <Clock className="w-5 h-5 text-accent-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-surface-900 truncate">{a.title}</p>
-                      <p className="text-xs text-surface-400">{formatDate(a.dueDate)}</p>
-                    </div>
-                    <Badge variant={days <= 2 ? "danger" : days <= 5 ? "warning" : "success"}>
-                      {days === 0 ? "Today" : days === 1 ? "Tomorrow" : `${days} days`}
-                    </Badge>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+            {courses.length === 0 && !showCreateCourse && (
+              <div className="col-span-full flex flex-col items-center justify-center text-surface-500 py-12">
+                <BookOpen className="w-12 h-12 mb-2 opacity-20" />
+                <p>No courses created yet.</p>
+              </div>
+            )}
+            {courses.map(course => (
+              <div key={course.id} className="glass-card p-4 rounded-xl flex flex-col group cursor-pointer hover:bg-white/10">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors">{course.name}</h3>
+                  <div className="bg-primary/20 text-primary px-2 py-1 rounded text-xs font-mono font-bold tracking-widest">
+                    {course.joinCode}
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+                <p className="text-xs text-surface-500 mb-4 line-clamp-2 flex-1">{course.description || "No description provided."}</p>
+                <div className="flex justify-between items-center border-t border-[color:var(--border)] pt-3 mt-auto">
+                  <span className="text-xs font-medium text-surface-600 flex items-center gap-1">
+                    <Users className="w-3 h-3" /> View Students
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-surface-400 group-hover:text-primary" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+
+        {/* Global Statistics Panel */}
+        <div className="glass-panel p-6 flex flex-col h-full">
+          <div className="mb-6 pb-4 border-b border-[color:var(--border)]">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <FileText className="text-blue-500" /> Platform Stats
+            </h2>
+          </div>
+
+          <div className="flex flex-col gap-4 flex-1">
+            <StatBlock label="Total Students" value={stats.totalStudents} icon={Users} color="text-blue-600" />
+            <StatBlock label="Platform Assignments" value={stats.totalAssignments} icon={FileText} color="text-indigo-600" />
+            <StatBlock label="Submissions" value={stats.submitted} icon={CheckCircle} color="text-emerald-600" />
+            <StatBlock label="Pending Grading" value={stats.pendingGrading} icon={Clock} color="text-amber-600" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatBlock({ label, value, icon: Icon, color }) {
+  return (
+    <div className="glass-card rounded-lg p-4 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className={`p-2 rounded-md bg-white/50 dark:bg-black/20 ${color}`}>
+          <Icon className="w-5 h-5" />
+        </div>
+        <span className="text-sm font-semibold">{label}</span>
+      </div>
+      <div className="text-2xl font-black tabular-nums">
+        {value}
       </div>
     </div>
   );

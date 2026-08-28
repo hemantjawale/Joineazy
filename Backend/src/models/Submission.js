@@ -27,9 +27,25 @@ const Submission = sequelize.define("Submission", {
     allowNull: true,
     field: "proof_text",
   },
-  grade: {
-    type: DataTypes.STRING,
+  gradeR1: {
+    type: DataTypes.INTEGER,
     allowNull: true,
+    field: "grade_r1",
+  },
+  gradeR2: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    field: "grade_r2",
+  },
+  gradeR3: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    field: "grade_r3",
+  },
+  totalScore: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    field: "total_score",
   },
   feedback: {
     type: DataTypes.TEXT,

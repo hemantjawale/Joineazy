@@ -16,6 +16,7 @@ import ProfessorAnalytics from "@/pages/professor/ProfessorAnalytics";
 import ProfessorGroups from "@/pages/professor/ProfessorGroups";
 import ProfessorGroupDetail from "@/pages/professor/ProfessorGroupDetail";
 import ProfessorStudents from "@/pages/professor/ProfessorStudents";
+import StudentReportCard from "@/pages/professor/StudentReportCard";
 
 import StudentDashboard from "@/pages/student/StudentDashboard";
 import StudentAssignments from "@/pages/student/StudentAssignments";
@@ -23,6 +24,7 @@ import StudentAssignmentDetail from "@/pages/student/StudentAssignmentDetail";
 import GroupList from "@/pages/student/GroupList";
 import GroupDetail from "@/pages/student/GroupDetail";
 import StudentSubmissions from "@/pages/student/StudentSubmissions";
+import CalendarView from "@/pages/student/CalendarView";
 
 function RequireGuest({ children }) {
   const { user, loading } = useAuth();
@@ -77,6 +79,7 @@ export default function App() {
           <Route path="/professor/groups" element={<ProfessorGroups />} />
           <Route path="/professor/groups/:id" element={<ProfessorGroupDetail />} />
           <Route path="/professor/students" element={<ProfessorStudents />} />
+          <Route path="/professor/students/:id/report" element={<StudentReportCard />} />
         </Route>
 
         <Route element={<RequireAuth role="student"><DashboardLayout /></RequireAuth>}>
@@ -86,6 +89,7 @@ export default function App() {
           <Route path="/student/groups" element={<GroupList />} />
           <Route path="/student/groups/:id" element={<GroupDetail />} />
           <Route path="/student/submissions" element={<StudentSubmissions />} />
+          <Route path="/student/calendar" element={<CalendarView />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" />} />

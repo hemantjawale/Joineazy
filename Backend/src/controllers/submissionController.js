@@ -9,6 +9,15 @@ export const confirmSubmission = async (req, res, next) => {
       return res.status(404).json({ message: "Assignment not found" });
     }
 
+    if (assignment.type === "group" && groupId) {
+      const membership = await GroupMember.findOne({
+        where: { groupId, userId: req.user.id }
+      });
+      if (!membership || membership.role !== "leader") {
+        return res.status(403).json({ message: "Only the group leader can submit group assignments." });
+      }
+    }
+
     const existing = await Submission.findOne({
       where: { assignmentId, userId: req.user.id },
     });
@@ -22,6 +31,8 @@ export const confirmSubmission = async (req, res, next) => {
       existing.confirmedAt = new Date();
       if (proofText) existing.proofText = proofText;
       await existing.save();
+
+      // If group assignment, update for all members (dummy logic here implies one sub per group or sync)
       return res.json({ submission: existing, step: 2 });
     }
 
@@ -99,7 +110,7 @@ export const getMySubmissions = async (req, res, next) => {
 
 export const gradeSubmission = async (req, res, next) => {
   try {
-    const { grade, feedback } = req.body;
+    const { gradeR1, gradeR2, gradeR3, feedback } = req.body;
     const submissionId = req.params.id;
 
     const submission = await Submission.findByPk(submissionId);
@@ -107,7 +118,10 @@ export const gradeSubmission = async (req, res, next) => {
       return res.status(404).json({ message: "Submission not found" });
     }
 
-    submission.grade = grade;
+    submission.gradeR1 = gradeR1 || 0;
+    submission.gradeR2 = gradeR2 || 0;
+    submission.gradeR3 = gradeR3 || 0;
+    submission.totalScore = (gradeR1 || 0) + (gradeR2 || 0) + (gradeR3 || 0);
     submission.feedback = feedback;
     submission.status = "graded";
     await submission.save();
