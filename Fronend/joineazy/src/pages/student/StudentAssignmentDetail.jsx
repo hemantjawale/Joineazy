@@ -6,9 +6,9 @@ import { useGroups } from "@/hooks/useGroups";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-import { ArrowLeft, ExternalLink, Calendar, CheckCircle, AlertTriangle, Users, BookOpen } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ArrowLeft, ExternalLink, Calendar, CheckCircle, AlertTriangle, Users, BookOpen, Plus, User } from "lucide-react";
 import { formatDate, isOverdue, daysUntil } from "@/lib/utils";
-import toast from "react-hot-toast";
 
 export default function StudentAssignmentDetail() {
   const { id } = useParams();
@@ -20,234 +20,408 @@ export default function StudentAssignmentDetail() {
   const [assignment, setAssignment] = useState(null);
   const [mySubmission, setMySubmission] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState([]);
+  
+  // Dialogs
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState("");
   const [proofText, setProofText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  
+  // Group logic
+  const [selectedGroup, setSelectedGroup] = useState("");
+  
+  // Sub-task distribution
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskAssignee, setNewTaskAssignee] = useState("");
+  const [creatingTask, setCreatingTask] = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchDetail = async () => {
       try {
-        const [aRes, subs] = await Promise.all([
+        const [aRes, sRes] = await Promise.all([
           api.get(`/assignments/${id}`),
-          getMySubmissions(),
+          getMySubmissions()
         ]);
-        setAssignment(aRes.data.assignment);
-        const sub = subs.find((s) => s.assignmentId === id);
+        
+        const data = aRes.data.assignment;
+        setAssignment(data);
+        
+        let sub = sRes.find(s => s.assignmentId === id);
+        
+        let initialGroup = "";
+        if (sub && sub.groupId) {
+          initialGroup = sub.groupId;
+        } else if (data.type === "group") {
+          const stored = localStorage.getItem(`assignment_group_${id}`);
+          if (stored) initialGroup = stored;
+        }
+
+        setSelectedGroup(initialGroup);
         setMySubmission(sub || null);
-      } catch {
+      } catch (err) {
+        console.error(err);
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    fetchDetail();
   }, [id, getMySubmissions]);
+
+  // Auto-select if only 1 group
+  useEffect(() => {
+    if (assignment?.type === "group" && groups.length === 1 && !selectedGroup) {
+      setSelectedGroup(groups[0].id);
+      localStorage.setItem(`assignment_group_${id}`, groups[0].id);
+    }
+  }, [assignment, groups, selectedGroup, id]);
+
+  // Fetch group submission if we don't have a personal one
+  useEffect(() => {
+    if (assignment?.type === "group" && selectedGroup && !mySubmission) {
+      const fetchGroupSub = async () => {
+        try {
+          const res = await api.get(`/submissions/group/${selectedGroup}`);
+          const gSub = res.data.submissions.find(s => s.assignmentId === id);
+          if (gSub) setMySubmission(gSub);
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      fetchGroupSub();
+    }
+  }, [assignment, selectedGroup, mySubmission, id]);
+
+  useEffect(() => {
+    if (selectedGroup && assignment?.type === "group") {
+      const fetchTasks = async () => {
+        try {
+          const res = await api.get(`/tasks/group/${selectedGroup}`);
+          const groupTasks = res.data.tasks.filter(t => t.assignmentId === id);
+          setTasks(groupTasks);
+        } catch (err) {
+          console.error("Failed to fetch group tasks", err);
+        }
+      };
+      fetchTasks();
+    }
+  }, [selectedGroup, assignment?.type, id]);
+
+  const isGroup = assignment?.type === "group";
+  let isLeader = false;
+  let activeGroup = null;
+  if (isGroup && selectedGroup) {
+    activeGroup = groups.find(g => g.id === selectedGroup);
+    if (activeGroup) {
+      const me = activeGroup.members.find(m => m.userId === user.id);
+      if (me && me.role === "leader") isLeader = true;
+    }
+  }
 
   const handleConfirmSubmission = async () => {
     setSubmitting(true);
     try {
-      const result = await confirmSubmission(id, selectedGroup || undefined, proofText || undefined);
-
-      if (result.step === 1) {
-        setMySubmission({ ...result.submission, status: "pending" });
-        toast.success("Step 1: Marked as submitted. Now provide your proof of work.");
+      if (mySubmission) {
+        await api.put(`/submissions/${mySubmission.id}/finalize`, { proofText });
       } else {
-        setMySubmission({ ...result.submission, status: "confirmed", proofText });
-        toast.success("Submission confirmed!");
+        await confirmSubmission(id, isGroup ? selectedGroup : null);
       }
+      const sRes = await getMySubmissions();
+      const sub = sRes.find(s => s.assignmentId === id);
+      setMySubmission(sub || null);
       setShowConfirmDialog(false);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to confirm. Make sure you are the group leader.");
+      console.error(err);
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleCreateTask = async (e) => {
+    e.preventDefault();
+    if (!newTaskTitle || !newTaskAssignee) return;
+    
+    setCreatingTask(true);
+    try {
+      const res = await api.post('/tasks', {
+        groupId: selectedGroup,
+        assignmentId: id,
+        title: newTaskTitle,
+        assignedToId: newTaskAssignee
+      });
+      setTasks([res.data.task, ...tasks]);
+      setNewTaskTitle("");
+      setNewTaskAssignee("");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCreatingTask(false);
+    }
+  };
+
+  const handleUpdateTaskStatus = async (taskId, currentStatus) => {
+    try {
+      const newStatus = currentStatus === "todo" ? "in_progress" : currentStatus === "in_progress" ? "done" : "todo";
+      const res = await api.put(`/tasks/${taskId}`, { status: newStatus });
+      setTasks(tasks.map(t => t.id === taskId ? res.data.task : t));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (loading) return <LoadingSpinner />;
-  if (!assignment) return <p className="text-center py-16 text-[color:var(--text-muted)]">Assignment not found</p>;
+  if (!assignment) return <div>Assignment not found</div>;
 
   const overdue = isOverdue(assignment.dueDate);
   const days = daysUntil(assignment.dueDate);
-  const isPending = mySubmission?.status === "pending";
-  const isConfirmed = mySubmission?.status === "confirmed";
-  const isGraded = mySubmission?.status === "graded";
+  const isPending = mySubmission && mySubmission.status === "pending";
+  const isConfirmed = mySubmission && mySubmission.status === "confirmed";
+  const isGraded = mySubmission && mySubmission.status === "graded";
   
-  // Group logic
-  const isGroup = assignment.type === "group";
-  let isLeader = false;
-  if (isGroup && selectedGroup) {
-    const group = groups.find(g => g.id === selectedGroup);
-    if (group) {
-      const me = group.members.find(m => m.userId === user.id);
-      if (me && me.role === "leader") isLeader = true;
-    }
-  }
+  const completedTasks = tasks.filter(t => t.status === "done").length;
+  const taskProgress = tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-12">
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-sm text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors cursor-pointer"
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in relative z-10">
+      <button 
+        onClick={() => navigate(-1)} 
+        className="flex items-center gap-2 text-sm text-surface-500 hover:text-surface-700 transition-colors cursor-pointer"
       >
         <ArrowLeft size={16} /> Back to Coursework
       </button>
 
-      <div className="skeuo-panel overflow-hidden">
-        {/* Header Ribbon */}
-        <div className={`p-6 border-b border-[color:var(--border-shadow)] ${overdue ? 'bg-red-50 dark:bg-red-900/20' : 'bg-[color:var(--bg-page)]'}`}>
-          <div className="flex flex-wrap items-center gap-3 mb-4">
-            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider skeuo-input ${isGroup ? 'text-blue-600' : 'text-purple-600'}`}>
-              {isGroup ? 'Group' : 'Individual'}
-            </span>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider skeuo-input flex items-center gap-1 ${overdue ? 'text-red-600' : 'text-green-600'}`}>
-              <Calendar className="w-3 h-3" />
-              {overdue ? "Overdue" : days === 0 ? "Due Today" : `${days} days left`}
-            </span>
+      <div className="glass-panel p-8 relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+          <BookOpen className="w-64 h-64 text-primary-500" />
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className={`px-3 py-1 rounded-full text-xs font-bold tracking-wider ${isGroup ? 'bg-primary-100 text-primary-700' : 'bg-purple-100 text-purple-700'}`}>
+            {isGroup ? "GROUP ASSIGNMENT" : "INDIVIDUAL ASSIGNMENT"}
           </div>
-          
-          <h1 className="text-3xl font-bold text-[color:var(--text-primary)]" style={{ textShadow: "0 1px 1px rgba(255,255,255,0.8)" }}>
-            {assignment.title}
-          </h1>
-          {assignment.professor && (
-            <p className="text-sm font-medium text-[color:var(--text-secondary)] mt-2 flex items-center gap-2">
-              <BookOpen className="w-4 h-4" /> Instructor: {assignment.professor.name}
-            </p>
+          <div className={`px-3 py-1 rounded-full text-xs font-bold tracking-wider flex items-center gap-1 ${overdue ? 'bg-red-100 text-red-700' : days <= 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+            <Calendar className="w-3 h-3" />
+            {overdue ? "OVERDUE" : days === 0 ? "DUE TODAY" : `${days} DAYS LEFT`}
+          </div>
+          {assignment.courseId && (
+            <div className="px-3 py-1 rounded-full text-xs font-bold tracking-wider bg-surface-100 text-surface-600">
+              COURSE ASSIGNMENT
+            </div>
           )}
         </div>
 
-        <div className="p-6 md:p-8 space-y-8">
-          
-          {/* Instructions */}
-          {assignment.description && (
-            <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-[color:var(--text-secondary)] mb-3">Briefing</h3>
-              <div className="skeuo-input p-6 rounded-xl text-[color:var(--text-primary)] leading-relaxed bg-[color:var(--bg-page)]" style={{ whiteSpace: "pre-wrap" }}>
-                {assignment.description}
-              </div>
-            </div>
-          )}
+        <h1 className="text-3xl sm:text-4xl font-black text-surface-900 mb-2">{assignment.title}</h1>
+        
+        <div className="flex items-center gap-2 text-surface-500 mb-8">
+          <User className="w-4 h-4" /> Instructor: <span className="font-medium text-surface-700">{assignment.professor?.name}</span>
+        </div>
 
-          {/* Details & Submission Link */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="w-full h-px bg-gradient-to-r from-surface-200 via-surface-300 to-transparent my-8" />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-widest text-surface-400 mb-3">Briefing</h3>
+            <p className="text-surface-700 whitespace-pre-wrap leading-relaxed">
+              {assignment.description || "No description provided."}
+            </p>
+          </div>
+
+          <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-[color:var(--text-secondary)] mb-3">Deadline</h3>
-              <div className="skeuo-input p-4 rounded-xl flex items-center gap-4 bg-[color:var(--bg-page)]">
-                <div className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center skeuo-panel ${overdue ? 'text-red-600' : 'text-[color:var(--text-primary)]'}`}>
-                  <span className="text-[10px] font-bold uppercase border-b border-[color:var(--border-shadow)] w-full text-center">{new Date(assignment.dueDate).toLocaleString('default', { month: 'short' })}</span>
-                  <span className="text-lg font-black">{new Date(assignment.dueDate).getDate()}</span>
+              <h3 className="text-sm font-bold uppercase tracking-widest text-surface-400 mb-3">Deadline</h3>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-surface-100 flex flex-col items-center justify-center shrink-0 border border-surface-200">
+                  <span className="text-[10px] font-bold text-surface-500 uppercase">{new Date(assignment.dueDate).toLocaleString('default', { month: 'short' })}</span>
+                  <span className="text-lg font-black text-surface-900 leading-none">{new Date(assignment.dueDate).getDate()}</span>
                 </div>
                 <div>
-                  <p className="font-bold text-[color:var(--text-primary)]">{formatDate(assignment.dueDate)}</p>
-                  <p className="text-xs text-[color:var(--text-secondary)]">Time remaining: {overdue ? 'None' : `${days} days`}</p>
+                  <p className="font-bold text-surface-900">{formatDate(assignment.dueDate)}</p>
+                  <p className="text-sm text-surface-500">Time remaining: {days} days</p>
                 </div>
               </div>
             </div>
-            
+
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-[color:var(--text-secondary)] mb-3">Workspace</h3>
-              <a href={assignment.oneDriveLink} target="_blank" rel="noopener noreferrer" className="block skeuo-btn p-4 rounded-xl text-center group bg-[color:var(--bg-page)]">
-                <ExternalLink className="w-6 h-6 mx-auto mb-2 text-blue-500 group-hover:scale-110 transition-transform" />
-                <p className="font-bold text-blue-600">Open Cloud Folder</p>
-                <p className="text-xs text-[color:var(--text-muted)] mt-1">Upload files before confirming below</p>
+              <h3 className="text-sm font-bold uppercase tracking-widest text-surface-400 mb-3">Workspace</h3>
+              <a 
+                href={assignment.oneDriveLink} 
+                target="_blank" 
+                rel="noreferrer"
+                className="flex flex-col items-center justify-center p-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-300 transition-colors group"
+              >
+                <ExternalLink className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="font-bold">Open Cloud Folder</span>
+                <span className="text-xs text-blue-400/80 mt-1">Upload files before confirming below</span>
               </a>
             </div>
           </div>
+        </div>
 
-          <hr className="border-[color:var(--border-shadow)] border-t-2 border-b-0 shadow-[0_1px_0_rgba(255,255,255,0.8)]" />
-
-          {/* Status Console */}
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-[color:var(--text-secondary)] mb-4">Submission Console</h3>
-
-            {isGraded ? (
-              <div className="space-y-4 animate-pop-in">
-                <div className="skeuo-panel p-6 border-l-4 border-green-500 flex flex-col md:flex-row gap-6 justify-between items-center bg-green-50 dark:bg-green-900/10">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full skeuo-indicator-green flex items-center justify-center shrink-0">
-                      <CheckCircle className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h4 className="text-xl font-bold text-green-800 dark:text-green-300">Graded Confirmed</h4>
-                      <p className="text-sm text-green-600 dark:text-green-400">Professor has reviewed your submission</p>
-                    </div>
-                  </div>
-                  <div className="text-center md:text-right w-full md:w-auto skeuo-input p-4 rounded-xl bg-[color:var(--bg-page)]">
-                    <p className="text-xs font-bold uppercase text-[color:var(--text-muted)] mb-1">Total Score</p>
-                    <p className="text-4xl font-black text-[color:var(--color-primary-600)]">{mySubmission.totalScore}</p>
-                  </div>
+        {/* Group Work Distribution Section */}
+        {isGroup && selectedGroup && activeGroup && (
+          <div className="mt-12 pt-8 border-t border-surface-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h3 className="text-lg font-bold text-surface-900 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary-500" /> Work Distribution
+                </h3>
+                <p className="text-sm text-surface-500">Manage tasks for {activeGroup.name}</p>
+              </div>
+              <div className="w-full sm:w-48">
+                <div className="flex justify-between text-xs font-bold text-surface-600 mb-1">
+                  <span>Progress</span>
+                  <span>{completedTasks} / {tasks.length}</span>
                 </div>
+                <Progress value={taskProgress} className="h-2" />
+              </div>
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="skeuo-input p-4 rounded-xl text-center bg-[color:var(--bg-page)]">
-                    <p className="text-xs font-bold uppercase text-[color:var(--text-secondary)]">R1: Timeliness</p>
-                    <p className="text-2xl font-black mt-2 text-[color:var(--text-primary)]">{mySubmission.gradeR1}</p>
-                  </div>
-                  <div className="skeuo-input p-4 rounded-xl text-center bg-[color:var(--bg-page)]">
-                    <p className="text-xs font-bold uppercase text-[color:var(--text-secondary)]">R2: Quality</p>
-                    <p className="text-2xl font-black mt-2 text-[color:var(--text-primary)]">{mySubmission.gradeR2}</p>
-                  </div>
-                  <div className="skeuo-input p-4 rounded-xl text-center bg-[color:var(--bg-page)]">
-                    <p className="text-xs font-bold uppercase text-[color:var(--text-secondary)]">R3: Presentation</p>
-                    <p className="text-2xl font-black mt-2 text-[color:var(--text-primary)]">{mySubmission.gradeR3}</p>
+            {isLeader && !isConfirmed && !isGraded && (
+              <form onSubmit={handleCreateTask} className="flex gap-2 mb-6">
+                <input 
+                  type="text" 
+                  placeholder="Task title..." 
+                  className="glass-input flex-1"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  required
+                />
+                <select 
+                  className="glass-input w-40"
+                  value={newTaskAssignee}
+                  onChange={(e) => setNewTaskAssignee(e.target.value)}
+                  required
+                >
+                  <option value="">Assign to...</option>
+                  {activeGroup.members.map(m => (
+                    <option key={m.user.id} value={m.user.id}>{m.user.name}</option>
+                  ))}
+                </select>
+                <button type="submit" disabled={creatingTask} className="glass-btn px-4 bg-primary-50 text-primary-600 hover:bg-primary-100 border-primary-200">
+                  <Plus className="w-5 h-5" />
+                </button>
+              </form>
+            )}
+
+            {tasks.length === 0 ? (
+              <div className="text-center p-6 border border-dashed border-surface-300 rounded-xl bg-surface-50/50">
+                <p className="text-sm text-surface-500">No tasks created yet.</p>
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                {tasks.map(task => {
+                  const isMine = task.assignedToId === user.id;
+                  const canEdit = isMine && !isConfirmed && !isGraded;
+                  
+                  return (
+                    <div key={task.id} className={`flex items-center justify-between p-3 rounded-lg border ${task.status === 'done' ? 'bg-green-50/50 border-green-200' : 'bg-white border-surface-200'}`}>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          disabled={!canEdit}
+                          onClick={() => handleUpdateTaskStatus(task.id, task.status)}
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                            task.status === 'done' ? 'bg-green-500 border-green-500 text-white' : 
+                            task.status === 'in_progress' ? 'bg-yellow-100 border-yellow-400 text-transparent' : 
+                            'border-surface-300 hover:border-primary-400 text-transparent'
+                          } ${canEdit ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                        </button>
+                        <div>
+                          <p className={`text-sm font-medium ${task.status === 'done' ? 'line-through text-surface-400' : 'text-surface-900'}`}>{task.title}</p>
+                          <p className="text-xs text-surface-500">Assigned to: {task.assignedTo?.name}</p>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-xs font-bold uppercase tracking-wider text-surface-400">
+                        {task.status.replace('_', ' ')}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="w-full h-px bg-gradient-to-r from-surface-200 via-surface-300 to-transparent my-8" />
+
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-widest text-surface-400 mb-6">Submission Console</h3>
+          
+          <div className="max-w-2xl mx-auto">
+            {isGraded ? (
+              <div className="glass-card border-primary-200 p-8 text-center bg-gradient-to-br from-primary-50 to-white">
+                <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-8 h-8 text-primary-600" />
+                </div>
+                <h4 className="text-2xl font-black text-surface-900 mb-2">Graded</h4>
+                <p className="text-surface-600 mb-6">Your professor has reviewed your work.</p>
+                
+                <div className="flex justify-center mb-6">
+                  <div className="bg-white px-8 py-4 rounded-2xl shadow-sm border border-surface-200">
+                    <p className="text-xs font-bold uppercase text-surface-400 mb-1">Score</p>
+                    <p className="text-4xl font-black text-primary-600">{mySubmission.grade || "N/A"}</p>
                   </div>
                 </div>
 
                 {mySubmission.feedback && (
-                  <div className="skeuo-input p-6 rounded-xl bg-[color:var(--bg-page)] mt-4">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-[color:var(--text-secondary)] mb-2">Professor Feedback</h4>
-                    <p className="text-sm font-medium italic text-[color:var(--text-primary)]">"{mySubmission.feedback}"</p>
+                  <div className="glass-input p-6 rounded-xl text-left">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-surface-500 mb-2">Professor Feedback</h4>
+                    <p className="text-sm font-medium text-surface-800">"{mySubmission.feedback}"</p>
                   </div>
                 )}
               </div>
             ) : isConfirmed ? (
-              <div className="skeuo-panel p-6 border-l-4 border-blue-500 flex items-center gap-4 bg-blue-50 dark:bg-blue-900/10 animate-pop-in">
-                <div className="w-12 h-12 rounded-full skeuo-indicator-green flex items-center justify-center shrink-0">
-                  <CheckCircle className="w-6 h-6 text-white" />
+              <div className="glass-card p-6 border-l-4 border-blue-500 flex items-center gap-4 bg-gradient-to-r from-blue-50/50 to-transparent">
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                  <CheckCircle className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <h4 className="text-xl font-bold text-blue-800 dark:text-blue-300">Submission Confirmed</h4>
-                  <p className="text-sm text-blue-600 dark:text-blue-400">Waiting for professor review.</p>
+                  <h4 className="text-lg font-bold text-blue-900">Submission Confirmed</h4>
+                  <p className="text-sm text-blue-600">Waiting for professor review.</p>
                 </div>
               </div>
             ) : isPending ? (
-              <div className="space-y-4 p-6 skeuo-panel bg-yellow-50 dark:bg-yellow-900/10 border-l-4 border-yellow-500 animate-pop-in">
+              <div className="space-y-4 p-6 glass-card bg-gradient-to-r from-yellow-50/50 to-transparent border-l-4 border-yellow-500">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full skeuo-indicator-yellow flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-6 h-6 text-yellow-900" />
+                  <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-6 h-6 text-yellow-600" />
                   </div>
                   <div>
-                    <h4 className="text-xl font-bold text-yellow-800 dark:text-yellow-300">Action Required: Step 2</h4>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-400">Acknowledge completion and provide proof.</p>
+                    <h4 className="text-lg font-bold text-yellow-900">Action Required: Step 2</h4>
+                    <p className="text-sm text-yellow-700">Acknowledge completion and provide proof.</p>
                   </div>
                 </div>
                 
                 {(!isGroup || (isGroup && isLeader)) ? (
-                  <button onClick={() => setShowConfirmDialog(true)} className="skeuo-btn-primary w-full py-4 text-lg rounded-xl flex items-center justify-center gap-2">
-                    <CheckCircle className="w-5 h-5" /> Finalize Submission
+                  <button onClick={() => setShowConfirmDialog(true)} className="glass-btn w-full py-4 text-lg bg-primary-600 hover:bg-primary-700 text-white border-transparent">
+                    <CheckCircle className="w-5 h-5 mr-2" /> Finalize Submission
                   </button>
                 ) : (
-                  <div className="skeuo-input p-4 text-center rounded-xl bg-[color:var(--bg-page)] text-yellow-700">
-                    <Users className="w-6 h-6 mx-auto mb-2" />
+                  <div className="glass-input p-4 text-center text-yellow-700">
+                    <Users className="w-6 h-6 mx-auto mb-2 opacity-50" />
                     <p className="font-bold">Group Leader Action Required</p>
-                    <p className="text-xs">Only the designated group leader can finalize this submission.</p>
+                    <p className="text-xs mt-1">Only the designated group leader can finalize this submission.</p>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="skeuo-panel p-6 bg-[color:var(--bg-page)] text-center animate-pop-in">
-                <div className="w-16 h-16 rounded-full skeuo-input flex items-center justify-center mx-auto mb-4 bg-surface-100">
+              <div className="glass-card p-8 text-center">
+                <div className="w-16 h-16 rounded-full bg-surface-100 flex items-center justify-center mx-auto mb-4">
                   <AlertTriangle className="w-8 h-8 text-surface-400" />
                 </div>
-                <h4 className="text-xl font-bold text-[color:var(--text-primary)] mb-2">No Submission Started</h4>
-                <p className="text-sm text-[color:var(--text-secondary)] mb-6">You have not acknowledged this assignment yet.</p>
+                <h4 className="text-xl font-bold text-surface-900 mb-2">No Submission Started</h4>
+                <p className="text-sm text-surface-500 mb-6">You have not acknowledged this assignment yet.</p>
                 
                 {isGroup && !selectedGroup && (
                   <div className="mb-6 max-w-sm mx-auto text-left">
-                    <label className="text-xs font-bold uppercase text-[color:var(--text-secondary)] mb-2 block">Select your group to begin:</label>
+                    <label className="text-xs font-bold uppercase text-surface-500 mb-2 block">Select your group to begin:</label>
                     <select 
-                      className="skeuo-input w-full p-3 rounded-lg"
+                      className="glass-input w-full"
                       value={selectedGroup} 
-                      onChange={(e) => setSelectedGroup(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedGroup(e.target.value);
+                        localStorage.setItem(`assignment_group_${id}`, e.target.value);
+                      }}
                     >
                       <option value="">-- Choose Group --</option>
                       {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -258,9 +432,9 @@ export default function StudentAssignmentDetail() {
                 <button 
                   onClick={() => setShowConfirmDialog(true)} 
                   disabled={isGroup && !selectedGroup}
-                  className={`skeuo-btn py-4 px-8 text-lg rounded-xl font-bold flex items-center justify-center gap-2 mx-auto ${isGroup && !selectedGroup ? 'opacity-50 cursor-not-allowed' : 'text-blue-600'}`}
+                  className={`glass-btn py-3 px-8 text-lg mx-auto ${isGroup && !selectedGroup ? 'opacity-50 cursor-not-allowed' : 'bg-primary-50 text-primary-700 hover:bg-primary-100'}`}
                 >
-                  <CheckCircle className="w-5 h-5" /> Initiate Submission (Step 1)
+                  <CheckCircle className="w-5 h-5 mr-2" /> Initiate Submission (Step 1)
                 </button>
               </div>
             )}
@@ -271,22 +445,22 @@ export default function StudentAssignmentDetail() {
       {/* Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onClose={() => setShowConfirmDialog(false)}>
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-[color:var(--text-primary)]">
+          <DialogTitle>
             {isPending ? "Final Confirmation" : "Initiate Submission"}
           </DialogTitle>
         </DialogHeader>
-        <DialogContent className="bg-[color:var(--bg-page)] text-[color:var(--text-primary)]">
+        <DialogContent>
           <div className="space-y-4 py-4">
-            <p className="text-sm font-medium text-[color:var(--text-secondary)]">
+            <p className="text-sm text-surface-600">
               {isPending
                 ? "Provide a description or link to your work to complete the submission."
                 : "By initiating, you confirm you will upload your work to the provided workspace."}
             </p>
             {isPending && (
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-[color:var(--text-secondary)]">Proof of Work</label>
+                <label className="text-xs font-bold uppercase text-surface-500">Proof of Work</label>
                 <textarea 
-                  className="skeuo-input w-full p-4 rounded-xl resize-none h-32"
+                  className="glass-input w-full p-4 h-32 resize-none"
                   placeholder="e.g. Uploaded as Final_Report_Team7.pdf in OneDrive" 
                   value={proofText}
                   onChange={(e) => setProofText(e.target.value)}
@@ -296,14 +470,14 @@ export default function StudentAssignmentDetail() {
             )}
           </div>
         </DialogContent>
-        <DialogFooter className="gap-2 sm:gap-0">
-          <button className="skeuo-btn px-6 py-2 rounded-lg" onClick={() => setShowConfirmDialog(false)}>Cancel</button>
+        <DialogFooter>
+          <button className="glass-btn px-6 py-2" onClick={() => setShowConfirmDialog(false)}>Cancel</button>
           <button 
-            className="skeuo-btn-primary px-6 py-2 rounded-lg flex items-center gap-2" 
+            className="glass-btn bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 border-transparent disabled:opacity-50 disabled:cursor-not-allowed" 
             onClick={handleConfirmSubmission} 
             disabled={submitting || (isPending && !proofText.trim())}
           >
-            {submitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : (isPending ? "Submit Work" : "Acknowledge")}
+            {submitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : (isPending ? "Submit Work" : "Acknowledge")}
           </button>
         </DialogFooter>
       </Dialog>

@@ -101,7 +101,7 @@ export default function StudentDashboard() {
           {courses.map((course) => (
             <Link 
               key={course.id} 
-              to={`/student/assignments`} 
+              to={`/student/assignments?courseId=${course.id}`} 
               className="block glass-card p-5 group hover:bg-white/20 transition-all"
             >
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-100 to-primary/30 flex items-center justify-center mb-4 text-primary">

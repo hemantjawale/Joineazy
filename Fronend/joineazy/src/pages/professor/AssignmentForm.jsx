@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAssignments } from "@/hooks/useAssignments";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,7 @@ export default function AssignmentForm() {
   const navigate = useNavigate();
   const { createAssignment, updateAssignment, getAssignment } = useAssignments();
 
+  const [courses, setCourses] = useState([]);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -24,14 +26,19 @@ export default function AssignmentForm() {
     oneDriveLink: "",
     type: "individual",
     targetScope: "all",
+    courseId: "",
   });
   const [submitting, setSubmitting] = useState(false);
-  const [loadingData, setLoadingData] = useState(isEditing);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    if (isEditing) {
-      getAssignment(id)
-        .then((a) => {
+    const fetchInitialData = async () => {
+      try {
+        const courseRes = await api.get("/courses");
+        setCourses(courseRes.data.courses || []);
+
+        if (isEditing) {
+          const a = await getAssignment(id);
           setFormData({
             title: a.title,
             description: a.description || "",
@@ -39,11 +46,16 @@ export default function AssignmentForm() {
             oneDriveLink: a.oneDriveLink,
             type: a.type,
             targetScope: a.targetScope,
+            courseId: a.courseId || "",
           });
-        })
-        .catch(() => toast.error("Failed to load assignment"))
-        .finally(() => setLoadingData(false));
-    }
+        }
+      } catch (err) {
+        toast.error("Failed to load necessary data");
+      } finally {
+        setLoadingData(false);
+      }
+    };
+    fetchInitialData();
   }, [id, isEditing, getAssignment]);
 
   const handleChange = (field) => (e) => {
@@ -54,11 +66,14 @@ export default function AssignmentForm() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      const submitData = { ...formData };
+      if (!submitData.courseId) delete submitData.courseId; // Omit if empty
+
       if (isEditing) {
-        await updateAssignment(id, formData);
+        await updateAssignment(id, submitData);
         toast.success("Assignment updated");
       } else {
-        await createAssignment(formData);
+        await createAssignment(submitData);
         toast.success("Assignment created");
       }
       navigate("/professor/assignments");
@@ -91,11 +106,21 @@ export default function AssignmentForm() {
               <Label htmlFor="title">Title</Label>
               <Input
                 id="title"
-                placeholder='e.g. "Assignment 3 – ER Diagram Design"'
+                placeholder='e.g. "Assignment 3 - ER Diagram Design"'
                 value={formData.title}
                 onChange={handleChange("title")}
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="courseId">Course (Optional)</Label>
+              <Select id="courseId" value={formData.courseId} onChange={handleChange("courseId")}>
+                <option value="">-- Select a Course --</option>
+                {courses.map(course => (
+                  <option key={course.id} value={course.id}>{course.name}</option>
+                ))}
+              </Select>
             </div>
 
             <div className="space-y-2">

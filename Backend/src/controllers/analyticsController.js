@@ -1,6 +1,6 @@
 import { Op } from "sequelize";
 import sequelize from "../config/database.js";
-import { Assignment, Submission, User, Group, GroupMember } from "../models/index.js";
+import { Assignment, Submission, User, Group, GroupMember, GroupTask } from "../models/index.js";
 
 export const getOverview = async (req, res, next) => {
   try {
@@ -100,6 +100,8 @@ export const getAssignmentAnalytics = async (req, res, next) => {
             confirmed: 0,
             pending: 0,
             members: [],
+            totalTasks: 0,
+            completedTasks: 0,
           };
         }
         groupSubmissions[sub.group.id].members.push({
@@ -114,6 +116,26 @@ export const getAssignmentAnalytics = async (req, res, next) => {
         }
       }
     });
+
+    // Fetch tasks for each group for this assignment
+    const groupIds = Object.keys(groupSubmissions);
+    if (groupIds.length > 0) {
+      const groupTasks = await GroupTask.findAll({
+        where: {
+          groupId: { [Op.in]: groupIds },
+          assignmentId: assignment.id
+        }
+      });
+      
+      groupTasks.forEach(task => {
+        if (groupSubmissions[task.groupId]) {
+          groupSubmissions[task.groupId].totalTasks++;
+          if (task.status === "done") {
+            groupSubmissions[task.groupId].completedTasks++;
+          }
+        }
+      });
+    }
 
     res.json({
       assignment: {

@@ -2,7 +2,7 @@ import { Assignment, User, Submission } from "../models/index.js";
 
 export const createAssignment = async (req, res, next) => {
   try {
-    const { title, description, dueDate, oneDriveLink, type, targetScope } = req.body;
+    const { title, description, dueDate, oneDriveLink, type, targetScope, courseId } = req.body;
 
     const assignment = await Assignment.create({
       title,
@@ -11,6 +11,7 @@ export const createAssignment = async (req, res, next) => {
       oneDriveLink,
       type: type || "individual",
       targetScope: targetScope || "all",
+      courseId: courseId || null,
       professorId: req.user.id,
     });
 
@@ -80,7 +81,7 @@ export const updateAssignment = async (req, res, next) => {
       return res.status(403).json({ message: "Not authorized" });
     }
 
-    const { title, description, dueDate, oneDriveLink, type, targetScope } = req.body;
+    const { title, description, dueDate, oneDriveLink, type, targetScope, courseId } = req.body;
 
     await assignment.update({
       title: title || assignment.title,
@@ -89,6 +90,7 @@ export const updateAssignment = async (req, res, next) => {
       oneDriveLink: oneDriveLink || assignment.oneDriveLink,
       type: type || assignment.type,
       targetScope: targetScope || assignment.targetScope,
+      courseId: courseId !== undefined ? courseId : assignment.courseId,
     });
 
     res.json({ assignment });

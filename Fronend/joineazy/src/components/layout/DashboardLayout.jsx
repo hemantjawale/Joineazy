@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import MobileNav from "./MobileNav";
 import DashboardHeader from "./DashboardHeader";
 
 export default function DashboardLayout() {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
   return (
     <div className="min-h-screen bg-surface-50 flex flex-col">
-      <Sidebar />
-      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
+      <Sidebar isCollapsed={isSidebarCollapsed} toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />
+      <div className={`transition-all duration-300 ${isSidebarCollapsed ? "lg:ml-20" : "lg:ml-64"} flex-1 flex flex-col min-h-screen`}>
         <DashboardHeader />
         <main className="flex-1 pb-20 lg:pb-0">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
