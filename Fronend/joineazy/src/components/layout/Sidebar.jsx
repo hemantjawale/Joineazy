@@ -10,7 +10,8 @@ import {
   ClipboardCheck,
   GraduationCap,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
@@ -28,6 +29,7 @@ const studentLinks = [
   { to: "/student/assignments", label: "Assignments", icon: BookOpen },
   { to: "/student/groups", label: "My Groups", icon: Users },
   { to: "/student/submissions", label: "Submissions", icon: ClipboardCheck },
+  { to: "/student/calendar", label: "Calendar", icon: Calendar },
 ];
 
 export default function Sidebar({ isCollapsed, toggleSidebar }) {
